@@ -13,7 +13,7 @@ from lib import utils, metrics
 from lib.AMSGrad import AMSGrad
 from lib.metrics import masked_mae_loss
 
-from model.dcrnn_model import DCRNNModel
+from model.tf.dcrnn_model import DCRNNModel
 
 
 class DCRNNSupervisor(object):

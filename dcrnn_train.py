@@ -7,7 +7,7 @@ import tensorflow as tf
 import yaml
 
 from lib.utils import load_graph_data
-from model.dcrnn_supervisor import DCRNNSupervisor
+from model.tf.dcrnn_supervisor import DCRNNSupervisor
 
 
 def main(args):
