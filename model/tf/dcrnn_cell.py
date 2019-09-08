@@ -4,7 +4,6 @@ from __future__ import print_function
 
 import numpy as np
 import tensorflow as tf
-
 from tensorflow.contrib.rnn import RNNCell
 
 from lib import utils
@@ -85,6 +84,7 @@ class DCGRUCell(RNNCell):
         """
         with tf.variable_scope(scope or "dcgru_cell"):
             with tf.variable_scope("gates"):  # Reset gate and update gate.
+                print(inputs.get_shape(), self.output_size)
                 output_size = 2 * self._num_units
                 # We start with bias of 1.0 to not reset and not update.
                 if self._use_gc_for_ru:
