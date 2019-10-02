@@ -9,9 +9,7 @@ from model.pytorch.dcrnn_model import EncoderModel, DecoderModel
 
 
 class DCRNNSupervisor:
-    def __init__(self, adj_mx, encoder_model: EncoderModel, decoder_model: DecoderModel, **kwargs):
-        self.decoder_model = decoder_model
-        self.encoder_model = encoder_model
+    def __init__(self, adj_mx, **kwargs):
         self._kwargs = kwargs
         self._data_kwargs = kwargs.get('data')
         self._model_kwargs = kwargs.get('model')
@@ -34,6 +32,10 @@ class DCRNNSupervisor:
         self.use_curriculum_learning = bool(
             self._model_kwargs.get('use_curriculum_learning', False))
         self.horizon = int(self._model_kwargs.get('horizon', 1))  # for the decoder
+
+        # setup model
+        self.encoder_model = EncoderModel(True, adj_mx, **self._model_kwargs)
+        self.decoder_model = DecoderModel(True, adj_mx, **self._model_kwargs)
 
     @staticmethod
     def _get_log_dir(kwargs):
