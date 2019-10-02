@@ -17,7 +17,6 @@ class DCRNNModel:
         self.num_nodes = int(model_kwargs.get('num_nodes', 1))
         self.num_rnn_layers = int(model_kwargs.get('num_rnn_layers', 1))
         self.rnn_units = int(model_kwargs.get('rnn_units'))
-        self.input_dim = int(model_kwargs.get('input_dim', 1))
         self.hidden_state_size = self.num_nodes * self.rnn_units
 
 
@@ -25,6 +24,7 @@ class EncoderModel(nn.Module, DCRNNModel):
     def __init__(self, is_training, scaler, adj_mx, **model_kwargs):
         super().__init__(is_training, scaler, adj_mx, **model_kwargs)
         # https://pytorch.org/docs/stable/nn.html#gru
+        self.input_dim = int(model_kwargs.get('input_dim', 1))
         self.seq_len = int(model_kwargs.get('seq_len'))  # for the encoder
 
     @property
