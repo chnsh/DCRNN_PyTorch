@@ -7,6 +7,8 @@ import torch
 from lib import utils
 from model.pytorch.dcrnn_model import EncoderModel, DecoderModel
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class DCRNNSupervisor:
     def __init__(self, adj_mx, **kwargs):
@@ -87,7 +89,8 @@ class DCRNNSupervisor:
         batch_size = inputs.size(1)
 
         inputs = inputs.view(self.seq_len, batch_size, self.num_nodes * self.input_dim)
-        labels = labels.view(self.horizon, batch_size, self.num_nodes * self.output_dim)
+        labels = labels[..., :self.output_dim].view(self.horizon, batch_size,
+                                                    self.num_nodes * self.output_dim)
 
         loss = 0
 
@@ -95,6 +98,7 @@ class DCRNNSupervisor:
         for t in range(self.seq_len):
             _, encoder_hidden_state = self.encoder_model.forward(inputs[t], encoder_hidden_state)
 
+        self._logger.info("Encoder complete, starting decoder")
         go_symbol = torch.zeros((batch_size, self.num_nodes * self.output_dim))
 
         decoder_hidden_state = encoder_hidden_state
@@ -113,6 +117,7 @@ class DCRNNSupervisor:
             loss += criterion(self.standard_scaler.inverse_transform(decoder_output),
                               self.standard_scaler.inverse_transform(labels[t]))
 
+        self._logger.info("Decoder complete, starting backprop")
         loss.backward()
         encoder_optimizer.step()
         decoder_optimizer.step()
@@ -135,16 +140,26 @@ class DCRNNSupervisor:
 
             start_time = time.time()
 
-            for x, y in train_iterator:
-                loss = self._train_one_batch(x, y, batches_seen, encoder_optimizer, decoder_optimizer, criterion)
+            for _, (x, y) in enumerate(train_iterator):
+                x = torch.from_numpy(x).float()
+                y = torch.from_numpy(y).float()
+                self._logger.debug("X: {}".format(x.size()))
+                self._logger.debug("y: {}".format(y.size()))
+                x = x.permute(1, 0, 2, 3)
+                y = y.permute(1, 0, 2, 3)
+                loss = self._train_one_batch(x, y, batches_seen, encoder_optimizer,
+                                             decoder_optimizer, criterion)
                 losses.append(loss)
                 batches_seen += 1
 
             end_time = time.time()
             if epoch_num % log_every == 0:
-                message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, val_mae: {:.4f} lr:{:.6f} {:.1f}s'.format(
-                    epoch_num, epochs, batches_seen, np.mean(losses), 0.0, 0.0, (end_time - start_time))
+                message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, val_mae: {:.4f} ' \
+                          'lr:{:.6f} {:.1f}s'.format(epoch_num, epochs, batches_seen,
+                                                     np.mean(losses), 0.0,
+                                                     0.0, (end_time - start_time))
                 self._logger.info(message)
 
     def _compute_sampling_threshold(self, batches_seen):
-        return self.cl_decay_steps / (self.cl_decay_steps + np.exp(batches_seen / self.cl_decay_steps))
+        return self.cl_decay_steps / (
+                self.cl_decay_steps + np.exp(batches_seen / self.cl_decay_steps))
