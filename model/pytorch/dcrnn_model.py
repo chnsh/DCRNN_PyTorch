@@ -1,13 +1,15 @@
+from typing import Any
+
+import numpy as np
 import torch
 import torch.nn as nn
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class DCRNNModel:
-    def __init__(self, is_training, adj_mx, **model_kwargs):
+class Seq2SeqAttrs:
+    def __init__(self, adj_mx, **model_kwargs):
         self.adj_mx = adj_mx
-        self.is_training = is_training
         self.max_diffusion_step = int(model_kwargs.get('max_diffusion_step', 2))
         self.cl_decay_steps = int(model_kwargs.get('cl_decay_steps', 1000))
         self.filter_type = model_kwargs.get('filter_type', 'laplacian')
@@ -18,12 +20,12 @@ class DCRNNModel:
         self.hidden_state_size = self.num_nodes * self.rnn_units
 
 
-class EncoderModel(nn.Module, DCRNNModel):
-    def __init__(self, is_training, adj_mx, **model_kwargs):
+class EncoderModel(nn.Module, Seq2SeqAttrs):
+    def __init__(self, adj_mx, **model_kwargs):
         # super().__init__(is_training, adj_mx, **model_kwargs)
         # https://pytorch.org/docs/stable/nn.html#gru
         nn.Module.__init__(self)
-        DCRNNModel.__init__(self, is_training, adj_mx, **model_kwargs)
+        Seq2SeqAttrs.__init__(self, adj_mx, **model_kwargs)
         self.input_dim = int(model_kwargs.get('input_dim', 1))
         self.seq_len = int(model_kwargs.get('seq_len'))  # for the encoder
         self.dcgru_layers = nn.ModuleList([nn.GRUCell(input_size=self.num_nodes * self.input_dim,
@@ -59,21 +61,11 @@ class EncoderModel(nn.Module, DCRNNModel):
         return output, torch.stack(hidden_states)  # runs in O(num_layers) so not too slow
 
 
-class DecoderModel(nn.Module, DCRNNModel):
-    def __init__(self, is_training, adj_mx, **model_kwargs):
+class DecoderModel(nn.Module, Seq2SeqAttrs):
+    def __init__(self, adj_mx, **model_kwargs):
         # super().__init__(is_training, adj_mx, **model_kwargs)
         nn.Module.__init__(self)
-        DCRNNModel.__init__(self, is_training, adj_mx, **model_kwargs)
-        self.adj_mx = adj_mx
-        self.is_training = is_training
-        self.max_diffusion_step = int(model_kwargs.get('max_diffusion_step', 2))
-        self.cl_decay_steps = int(model_kwargs.get('cl_decay_steps', 1000))
-        self.filter_type = model_kwargs.get('filter_type', 'laplacian')
-        # self.max_grad_norm = float(model_kwargs.get('max_grad_norm', 5.0))
-        self.num_nodes = int(model_kwargs.get('num_nodes', 1))
-        self.num_rnn_layers = int(model_kwargs.get('num_rnn_layers', 1))
-        self.rnn_units = int(model_kwargs.get('rnn_units'))
-        self.hidden_state_size = self.num_nodes * self.rnn_units
+        Seq2SeqAttrs.__init__(self, adj_mx, **model_kwargs)
         self.output_dim = int(model_kwargs.get('output_dim', 1))
         self.use_curriculum_learning = bool(model_kwargs.get('use_curriculum_learning', False))
         self.horizon = int(model_kwargs.get('horizon', 1))  # for the decoder
@@ -105,3 +97,65 @@ class DecoderModel(nn.Module, DCRNNModel):
             output = next_hidden_state
 
         return self.projection_layer(output), torch.stack(hidden_states)
+
+
+class DCRNNModel(nn.Module, Seq2SeqAttrs):
+    def __init__(self, adj_mx, logger, **model_kwargs):
+        super().__init__()
+        Seq2SeqAttrs.__init__(self, adj_mx, **model_kwargs)
+        self.encoder_model = EncoderModel(adj_mx, **model_kwargs)
+        self.decoder_model = DecoderModel(adj_mx, **model_kwargs)
+        self._logger = logger
+
+    def encoder(self, inputs):
+        """
+        encoder forward pass on t time steps
+        :param inputs: shape (seq_len, batch_size, num_sensor * input_dim)
+        :return: encoder_hidden_state: (num_layers, batch_size, self.hidden_state_size)
+        """
+        encoder_hidden_state = None
+        for t in range(self.encoder_model.seq_len):
+            _, encoder_hidden_state = self.encoder_model(inputs[t], encoder_hidden_state)
+
+        return encoder_hidden_state
+
+    def decoder(self, encoder_hidden_state, labels=None, batches_seen=None):
+        """
+        Decoder forward pass
+        :param encoder_hidden_state: (num_layers, batch_size, self.hidden_state_size)
+        :param labels: (self.horizon, batch_size, self.num_nodes * self.output_dim) [optional, not exist for inference]
+        :param batches_seen: global step [optional, not exist for inference]
+        :return: output: (self.horizon, batch_size, self.num_nodes * self.output_dim)
+        """
+        batch_size = encoder_hidden_state.size(1)
+        go_symbol = torch.zeros((batch_size, self.num_nodes * self.output_dim))
+        decoder_hidden_state = encoder_hidden_state
+        decoder_input = go_symbol
+
+        outputs = []
+
+        for t in range(self.decoder_model.horizon):
+            decoder_output, decoder_hidden_state = self.decoder_model(decoder_input,
+                                                                      decoder_hidden_state)
+            decoder_input = decoder_output
+            outputs.append(decoder_output)
+            if self.training and self.use_curriculum_learning:
+                c = np.random.uniform(0, 1)
+                if c < self._compute_sampling_threshold(batches_seen):
+                    decoder_input = labels[t]
+        outputs = torch.stack(outputs)
+        return outputs
+
+    def forward(self, inputs, labels=None, batches_seen=None):
+        """
+        seq2seq forward pass
+        :param inputs: shape (seq_len, batch_size, num_sensor * input_dim)
+        :param labels: shape (horizon, batch_size, num_sensor * output)
+        :param batches_seen: batches seen till date
+        :return: output: (self.horizon, batch_size, self.num_nodes * self.output_dim)
+        """
+        encoder_hidden_state = self.encoder(inputs)
+        self._logger.info("Encoder complete, starting decoder")
+        outputs = self.decoder(encoder_hidden_state, labels, batches_seen=batches_seen)
+        self._logger.info("Decoder complete")
+        return outputs
