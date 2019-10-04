@@ -32,7 +32,6 @@ class DCRNNSupervisor:
         self.input_dim = int(self._model_kwargs.get('input_dim', 1))
         self.seq_len = int(self._model_kwargs.get('seq_len'))  # for the encoder
         self.output_dim = int(self._model_kwargs.get('output_dim', 1))
-        self.cl_decay_steps = int(self._model_kwargs.get('cl_decay_steps', 1000))
         self.use_curriculum_learning = bool(
             self._model_kwargs.get('use_curriculum_learning', False))
         self.horizon = int(self._model_kwargs.get('horizon', 1))  # for the decoder
@@ -94,7 +93,7 @@ class DCRNNSupervisor:
                 x, y = self._get_x_y(x, y)
                 x, y = self._get_x_y_in_correct_dims(x, y)
 
-                output = self.dcrnn_model(x, y)
+                output = self.dcrnn_model(x, y, batches_seen)
                 loss = self._compute_loss(y, output, criterion)
                 self._logger.info(loss.item())
                 losses.append(loss.item())
@@ -142,10 +141,6 @@ class DCRNNSupervisor:
         y = y[..., :self.output_dim].view(self.horizon, batch_size,
                                           self.num_nodes * self.output_dim)
         return x, y
-
-    def _compute_sampling_threshold(self, batches_seen):
-        return self.cl_decay_steps / (
-                self.cl_decay_steps + np.exp(batches_seen / self.cl_decay_steps))
 
     def _compute_loss(self, y_true, y_predicted, criterion):
         loss = 0

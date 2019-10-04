@@ -67,7 +67,6 @@ class DecoderModel(nn.Module, Seq2SeqAttrs):
         nn.Module.__init__(self)
         Seq2SeqAttrs.__init__(self, adj_mx, **model_kwargs)
         self.output_dim = int(model_kwargs.get('output_dim', 1))
-        self.use_curriculum_learning = bool(model_kwargs.get('use_curriculum_learning', False))
         self.horizon = int(model_kwargs.get('horizon', 1))  # for the decoder
         self.projection_layer = nn.Linear(self.hidden_state_size, self.num_nodes * self.output_dim)
         self.dcgru_layers = nn.ModuleList([nn.GRUCell(input_size=self.num_nodes * self.output_dim,
@@ -105,7 +104,13 @@ class DCRNNModel(nn.Module, Seq2SeqAttrs):
         Seq2SeqAttrs.__init__(self, adj_mx, **model_kwargs)
         self.encoder_model = EncoderModel(adj_mx, **model_kwargs)
         self.decoder_model = DecoderModel(adj_mx, **model_kwargs)
+        self.cl_decay_steps = int(model_kwargs.get('cl_decay_steps', 1000))
+        self.use_curriculum_learning = bool(model_kwargs.get('use_curriculum_learning', False))
         self._logger = logger
+
+    def _compute_sampling_threshold(self, batches_seen):
+        return self.cl_decay_steps / (
+                self.cl_decay_steps + np.exp(batches_seen / self.cl_decay_steps))
 
     def encoder(self, inputs):
         """
@@ -128,7 +133,7 @@ class DCRNNModel(nn.Module, Seq2SeqAttrs):
         :return: output: (self.horizon, batch_size, self.num_nodes * self.output_dim)
         """
         batch_size = encoder_hidden_state.size(1)
-        go_symbol = torch.zeros((batch_size, self.num_nodes * self.output_dim))
+        go_symbol = torch.zeros((batch_size, self.num_nodes * self.decoder_model.output_dim))
         decoder_hidden_state = encoder_hidden_state
         decoder_input = go_symbol
 
