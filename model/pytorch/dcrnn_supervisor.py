@@ -7,8 +7,6 @@ import torch
 from lib import utils
 from model.pytorch.dcrnn_model import DCRNNModel
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class DCRNNSupervisor:
     def __init__(self, adj_mx, **kwargs):
@@ -37,7 +35,8 @@ class DCRNNSupervisor:
         self.horizon = int(self._model_kwargs.get('horizon', 1))  # for the decoder
 
         # setup model
-        self.dcrnn_model = DCRNNModel(adj_mx, self._logger, **self._model_kwargs)
+        dcrnn_model = DCRNNModel(adj_mx, self._logger, **self._model_kwargs)
+        self.dcrnn_model = dcrnn_model.cuda() if torch.cuda.is_available() else dcrnn_model
 
     @staticmethod
     def _get_log_dir(kwargs):

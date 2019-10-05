@@ -1,10 +1,6 @@
-from typing import Any
-
 import numpy as np
 import torch
 import torch.nn as nn
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class Seq2SeqAttrs:
@@ -49,8 +45,7 @@ class EncoderModel(nn.Module, Seq2SeqAttrs):
         """
         batch_size, _ = inputs.size()
         if hidden_state is None:
-            hidden_state = torch.zeros((self.num_rnn_layers, batch_size, self.hidden_state_size),
-                                       device=device)
+            hidden_state = torch.zeros((self.num_rnn_layers, batch_size, self.hidden_state_size))
         hidden_states = []
         output = inputs
         for layer_num, dcgru_layer in enumerate(self.dcgru_layers):
