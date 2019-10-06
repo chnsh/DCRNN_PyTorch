@@ -133,7 +133,6 @@ class DCGRUCell(torch.nn.Module):
         state = torch.reshape(state, (batch_size, self._num_nodes, -1))
         inputs_and_state = torch.cat([inputs, state], dim=2)
         input_size = inputs_and_state.size(2)
-        dtype = inputs.dtype
 
         x = inputs_and_state
         x0 = x.permute(1, 2, 0)  # (num_nodes, total_arg_size, batch_size)
@@ -148,7 +147,7 @@ class DCGRUCell(torch.nn.Module):
                 x = self._concat(x, x1)
 
                 for k in range(2, self._max_diffusion_step + 1):
-                    x2 = 2 * torch.mm(support, x1) - x0
+                    x2 = 2 * torch.sparse.mm(support, x1) - x0
                     x = self._concat(x, x2)
                     x1, x0 = x2, x1
 

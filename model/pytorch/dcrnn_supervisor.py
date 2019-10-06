@@ -143,7 +143,9 @@ class DCRNNSupervisor:
 
                 output = self.dcrnn_model(x, y, batches_seen)
                 loss = self._compute_loss(y, output, criterion)
-                self._logger.info(loss.item())
+
+                self._logger.debug(loss.item())
+
                 losses.append(loss.item())
 
                 batches_seen += 1
