@@ -7,6 +7,8 @@ import torch
 from lib import utils
 from model.pytorch.dcrnn_model import DCRNNModel
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class DCRNNSupervisor:
     def __init__(self, adj_mx, **kwargs):
@@ -36,7 +38,6 @@ class DCRNNSupervisor:
 
         # setup model
         dcrnn_model = DCRNNModel(adj_mx, self._logger, **self._model_kwargs)
-        print(dcrnn_model)
         self.dcrnn_model = dcrnn_model.cuda() if torch.cuda.is_available() else dcrnn_model
         self._logger.info("Model created")
 
@@ -215,7 +216,7 @@ class DCRNNSupervisor:
         x = x.view(self.seq_len, batch_size, self.num_nodes * self.input_dim)
         y = y[..., :self.output_dim].view(self.horizon, batch_size,
                                           self.num_nodes * self.output_dim)
-        return x, y
+        return x.to(device), y.to(device)
 
     def _compute_loss(self, y_true, y_predicted, criterion):
         loss = 0

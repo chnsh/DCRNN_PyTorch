@@ -3,6 +3,8 @@ import torch
 
 from lib import utils
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class LayerParams:
     def __init__(self, rnn_network: torch.nn.Module, layer_type: str):
@@ -13,7 +15,8 @@ class LayerParams:
 
     def get_weights(self, shape):
         if shape not in self._params_dict:
-            nn_param = torch.nn.Parameter(torch.nn.init.xavier_normal(torch.empty(*shape)))
+            nn_param = torch.nn.Parameter(torch.empty(*shape, device=device))
+            torch.nn.init.xavier_normal_(nn_param)
             self._params_dict[shape] = nn_param
             self._rnn_network.register_parameter('{}_weight_{}'.format(self._type, str(shape)),
                                                  nn_param)
@@ -21,7 +24,8 @@ class LayerParams:
 
     def get_biases(self, length, bias_start=0.0):
         if length not in self._biases_dict:
-            biases = torch.nn.Parameter(torch.nn.init.constant(torch.empty(length), bias_start))
+            biases = torch.nn.Parameter(torch.empty(length, device=device))
+            torch.nn.init.constant_(biases, bias_start)
             self._biases_dict[length] = biases
             self._rnn_network.register_parameter('{}_biases_{}'.format(self._type, str(length)),
                                                  biases)
