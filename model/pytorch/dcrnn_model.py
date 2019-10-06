@@ -2,6 +2,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from model.pytorch.dcrnn_cell import DCGRUCell
+
 
 class Seq2SeqAttrs:
     def __init__(self, adj_mx, **model_kwargs):
@@ -9,7 +11,6 @@ class Seq2SeqAttrs:
         self.max_diffusion_step = int(model_kwargs.get('max_diffusion_step', 2))
         self.cl_decay_steps = int(model_kwargs.get('cl_decay_steps', 1000))
         self.filter_type = model_kwargs.get('filter_type', 'laplacian')
-        # self.max_grad_norm = float(model_kwargs.get('max_grad_norm', 5.0))
         self.num_nodes = int(model_kwargs.get('num_nodes', 1))
         self.num_rnn_layers = int(model_kwargs.get('num_rnn_layers', 1))
         self.rnn_units = int(model_kwargs.get('rnn_units'))
@@ -18,19 +19,13 @@ class Seq2SeqAttrs:
 
 class EncoderModel(nn.Module, Seq2SeqAttrs):
     def __init__(self, adj_mx, **model_kwargs):
-        # super().__init__(is_training, adj_mx, **model_kwargs)
-        # https://pytorch.org/docs/stable/nn.html#gru
         nn.Module.__init__(self)
         Seq2SeqAttrs.__init__(self, adj_mx, **model_kwargs)
         self.input_dim = int(model_kwargs.get('input_dim', 1))
         self.seq_len = int(model_kwargs.get('seq_len'))  # for the encoder
-        self.dcgru_layers = nn.ModuleList([nn.GRUCell(input_size=self.num_nodes * self.input_dim,
-                                                      hidden_size=self.hidden_state_size,
-                                                      bias=True)] + [
-                                              nn.GRUCell(input_size=self.hidden_state_size,
-                                                         hidden_size=self.hidden_state_size,
-                                                         bias=True) for _ in
-                                              range(self.num_rnn_layers - 1)])
+        self.dcgru_layers = nn.ModuleList(
+            [DCGRUCell(self.rnn_units, adj_mx, self.max_diffusion_step, self.num_nodes,
+                       filter_type=self.filter_type) for _ in range(self.num_rnn_layers)])
 
     def forward(self, inputs, hidden_state=None):
         """
@@ -63,14 +58,10 @@ class DecoderModel(nn.Module, Seq2SeqAttrs):
         Seq2SeqAttrs.__init__(self, adj_mx, **model_kwargs)
         self.output_dim = int(model_kwargs.get('output_dim', 1))
         self.horizon = int(model_kwargs.get('horizon', 1))  # for the decoder
-        self.projection_layer = nn.Linear(self.hidden_state_size, self.num_nodes * self.output_dim)
-        self.dcgru_layers = nn.ModuleList([nn.GRUCell(input_size=self.num_nodes * self.output_dim,
-                                                      hidden_size=self.hidden_state_size,
-                                                      bias=True)] + [
-                                              nn.GRUCell(input_size=self.hidden_state_size,
-                                                         hidden_size=self.hidden_state_size,
-                                                         bias=True) for _ in
-                                              range(self.num_rnn_layers - 1)])
+        self.projection_layer = nn.Linear(self.rnn_units, self.output_dim)
+        self.dcgru_layers = nn.ModuleList(
+            [DCGRUCell(self.rnn_units, adj_mx, self.max_diffusion_step, self.num_nodes,
+                       filter_type=self.filter_type) for _ in range(self.num_rnn_layers)])
 
     def forward(self, inputs, hidden_state=None):
         """
@@ -90,7 +81,10 @@ class DecoderModel(nn.Module, Seq2SeqAttrs):
             hidden_states.append(next_hidden_state)
             output = next_hidden_state
 
-        return self.projection_layer(output), torch.stack(hidden_states)
+        projected = self.projection_layer(output.view(-1, self.rnn_units))
+        output = projected.view(-1, self.num_nodes * self.output_dim)
+
+        return output, torch.stack(hidden_states)
 
 
 class DCRNNModel(nn.Module, Seq2SeqAttrs):

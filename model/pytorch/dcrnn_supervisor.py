@@ -36,6 +36,7 @@ class DCRNNSupervisor:
 
         # setup model
         dcrnn_model = DCRNNModel(adj_mx, self._logger, **self._model_kwargs)
+        print(dcrnn_model)
         self.dcrnn_model = dcrnn_model.cuda() if torch.cuda.is_available() else dcrnn_model
         self._logger.info("Model created")
 
