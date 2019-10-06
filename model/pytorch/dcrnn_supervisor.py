@@ -154,7 +154,7 @@ class DCRNNSupervisor:
                 torch.nn.utils.clip_grad_norm_(self.dcrnn_model.parameters(), self.max_grad_norm)
 
                 optimizer.step()
-                self._logger.info("finished one batch in {}".format(time.time() - start_time))
+                self._logger.info("finished one batch in {:.1f}s".format(time.time() - start_time))
 
             lr_scheduler.step()
 
