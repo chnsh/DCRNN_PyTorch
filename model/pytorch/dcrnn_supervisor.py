@@ -7,6 +7,8 @@ import torch
 from lib import utils
 from model.pytorch.dcrnn_model import DCRNNModel
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class DCRNNSupervisor:
     def __init__(self, adj_mx, **kwargs):
@@ -75,7 +77,7 @@ class DCRNNSupervisor:
         config['model_state_dict'] = self.dcrnn_model.state_dict()
         config['epoch'] = epoch
         torch.save(config, self._log_dir + 'models/epo%d.tar' % epoch)
-        self._logger.info("Loaded model at {}".format(epoch))
+        self._logger.info("Saved model at {}".format(epoch))
         return self._log_dir + 'models/epo%d.tar' % epoch
 
     def load_model(self, epoch):
@@ -102,8 +104,7 @@ class DCRNNSupervisor:
             criterion = torch.nn.L1Loss()
 
             for _, (x, y) in enumerate(val_iterator):
-                x, y = self._get_x_y(x, y)
-                x, y = self._get_x_y_in_correct_dims(x, y)
+                x, y = self._prepare_data(x, y)
 
                 output = self.dcrnn_model(x)
                 loss = self._compute_loss(y, output, criterion)
@@ -128,6 +129,7 @@ class DCRNNSupervisor:
         self.dcrnn_model = self.dcrnn_model.train()
 
         self._logger.info('Start training ...')
+        self._logger.info("num_batches:{}".format(self._data['train_loader'].num_batch))
         for epoch_num in range(epochs):
             train_iterator = self._data['train_loader'].get_iterator()
             losses = []
@@ -137,12 +139,13 @@ class DCRNNSupervisor:
             for _, (x, y) in enumerate(train_iterator):
                 optimizer.zero_grad()
 
-                x, y = self._get_x_y(x, y)
-                x, y = self._get_x_y_in_correct_dims(x, y)
+                x, y = self._prepare_data(x, y)
 
                 output = self.dcrnn_model(x, y, batches_seen)
                 loss = self._compute_loss(y, output, criterion)
-                self._logger.info(loss.item())
+
+                self._logger.debug(loss.item())
+
                 losses.append(loss.item())
 
                 batches_seen += 1
@@ -152,39 +155,45 @@ class DCRNNSupervisor:
                 torch.nn.utils.clip_grad_norm_(self.dcrnn_model.parameters(), self.max_grad_norm)
 
                 optimizer.step()
-
+            self._logger.info("epoch complete")
             lr_scheduler.step()
-
+            self._logger.info("evaluating now!")
             val_loss = self.evaluate(dataset='val')
             end_time = time.time()
             if epoch_num % log_every == 0:
-                message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, val_mae: {:.4f}, lr: {:.6f}' \
+                message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, val_mae: {:.4f}, lr: {:.6f}, ' \
                           '{:.1f}s'.format(epoch_num, epochs, batches_seen,
-                                           np.mean(losses), val_loss, lr_scheduler.get_lr(),
+                                           np.mean(losses), val_loss, lr_scheduler.get_lr()[0],
                                            (end_time - start_time))
                 self._logger.info(message)
 
             if epoch_num % test_every_n_epochs == 0:
                 test_loss = self.evaluate(dataset='test')
-                message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, test_mae: {:.4f},  lr: {:.6f} ' \
+                message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, test_mae: {:.4f},  lr: {:.6f}, ' \
                           '{:.1f}s'.format(epoch_num, epochs, batches_seen,
-                                           np.mean(losses), test_loss, lr_scheduler.get_lr(),
+                                           np.mean(losses), test_loss, lr_scheduler.get_lr()[0],
                                            (end_time - start_time))
                 self._logger.info(message)
 
             if val_loss < min_val_loss:
                 wait = 0
-                min_val_loss = val_loss
                 if save_model:
                     model_file_name = self.save_model(epoch_num)
                     self._logger.info(
                         'Val loss decrease from {:.4f} to {:.4f}, '
                         'saving to {}'.format(min_val_loss, val_loss, model_file_name))
+                min_val_loss = val_loss
+
             elif val_loss >= min_val_loss:
                 wait += 1
                 if wait == patience:
                     self._logger.warning('Early stopping at epoch: %d' % epoch_num)
                     break
+
+    def _prepare_data(self, x, y):
+        x, y = self._get_x_y(x, y)
+        x, y = self._get_x_y_in_correct_dims(x, y)
+        return x.to(device), y.to(device)
 
     def _get_x_y(self, x, y):
         """
