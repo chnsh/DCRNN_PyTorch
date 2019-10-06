@@ -120,8 +120,8 @@ class DCRNNSupervisor:
             return mean_loss
 
     def _train(self, base_lr,
-               steps, patience=50, epochs=100, lr_decay_ratio=0.1, log_every=10, save_model=1,
-               test_every_n_epochs=10, **kwargs):
+               steps, patience=50, epochs=100, lr_decay_ratio=0.1, log_every=1, save_model=1,
+               test_every_n_epochs=10):
         # steps is used in learning rate - will see if need to use it?
         min_val_loss = float('inf')
         wait = 0
@@ -171,14 +171,14 @@ class DCRNNSupervisor:
                                     np.mean(losses),
                                     batches_seen)
 
-            if epoch_num % log_every == log_every - 1:
+            if (epoch_num % log_every) == log_every - 1:
                 message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, val_mae: {:.4f}, lr: {:.6f}, ' \
                           '{:.1f}s'.format(epoch_num, epochs, batches_seen,
                                            np.mean(losses), val_loss, lr_scheduler.get_lr()[0],
                                            (end_time - start_time))
                 self._logger.info(message)
 
-            if epoch_num % test_every_n_epochs == test_every_n_epochs - 1:
+            if (epoch_num % test_every_n_epochs) == test_every_n_epochs - 1:
                 test_loss = self.evaluate(dataset='test', batches_seen=batches_seen)
                 message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, test_mae: {:.4f},  lr: {:.6f}, ' \
                           '{:.1f}s'.format(epoch_num, epochs, batches_seen,
