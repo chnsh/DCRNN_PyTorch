@@ -129,7 +129,7 @@ class DCRNNSupervisor:
         self.dcrnn_model = self.dcrnn_model.train()
 
         self._logger.info('Start training ...')
-        self._logger.info("num_batches:".format(self._data['train_loader'].num_batch))
+        self._logger.info("num_batches:{}".format(self._data['train_loader'].num_batch))
         for epoch_num in range(epochs):
             train_iterator = self._data['train_loader'].get_iterator()
             losses = []
@@ -144,7 +144,7 @@ class DCRNNSupervisor:
                 output = self.dcrnn_model(x, y, batches_seen)
                 loss = self._compute_loss(y, output, criterion)
 
-                self._logger.info(loss.item())
+                self._logger.debug(loss.item())
 
                 losses.append(loss.item())
 
