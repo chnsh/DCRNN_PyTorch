@@ -74,7 +74,7 @@ class DCGRUCell(torch.nn.Module):
     def _build_sparse_matrix(L):
         L = L.tocoo()
         indices = np.column_stack((L.row, L.col))
-        L = torch.sparse_coo_tensor(indices.T, L.data, L.shape)
+        L = torch.sparse_coo_tensor(indices.T, L.data, L.shape, device=device)
         return L
         # return torch.sparse.sparse_reorder(L)
 
