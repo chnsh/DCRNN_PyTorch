@@ -3,9 +3,11 @@ import time
 
 import numpy as np
 import torch
+from torch.utils.tensorboard import SummaryWriter
 
 from lib import utils
 from model.pytorch.dcrnn_model import DCRNNModel
+from model.pytorch.loss import masked_mae_loss
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -21,6 +23,8 @@ class DCRNNSupervisor:
 
         # logging.
         self._log_dir = self._get_log_dir(kwargs)
+        self._writer = SummaryWriter('runs/' + self._log_dir)
+
         log_level = self._kwargs.get('log_level', 'INFO')
         self._logger = utils.get_logger(self._log_dir, __name__, 'info.log', level=log_level)
 
@@ -91,7 +95,7 @@ class DCRNNSupervisor:
         kwargs.update(self._train_kwargs)
         return self._train(**kwargs)
 
-    def evaluate(self, dataset='val'):
+    def evaluate(self, dataset='val', batches_seen=0):
         """
         Computes mean L1Loss
         :return: mean L1Loss
@@ -101,20 +105,22 @@ class DCRNNSupervisor:
 
             val_iterator = self._data['{}_loader'.format(dataset)].get_iterator()
             losses = []
-            criterion = torch.nn.L1Loss()
 
             for _, (x, y) in enumerate(val_iterator):
                 x, y = self._prepare_data(x, y)
 
                 output = self.dcrnn_model(x)
-                loss = self._compute_loss(y, output, criterion)
+                loss = self._compute_loss(y, output)
                 losses.append(loss.item())
 
-            return np.mean(losses)
+            mean_loss = np.mean(losses)
+
+            self._writer.add_scalar('{} loss'.format(dataset), mean_loss, batches_seen)
+
+            return mean_loss
 
     def _train(self, base_lr,
-               steps, patience=50, epochs=100,
-               min_learning_rate=2e-6, lr_decay_ratio=0.1, log_every=10, save_model=1,
+               steps, patience=50, epochs=100, lr_decay_ratio=0.1, log_every=10, save_model=1,
                test_every_n_epochs=10, **kwargs):
         # steps is used in learning rate - will see if need to use it?
         min_val_loss = float('inf')
@@ -124,7 +130,6 @@ class DCRNNSupervisor:
 
         lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=steps,
                                                             gamma=lr_decay_ratio)
-        criterion = torch.nn.L1Loss()  # mae loss
 
         self.dcrnn_model = self.dcrnn_model.train()
 
@@ -142,7 +147,7 @@ class DCRNNSupervisor:
                 x, y = self._prepare_data(x, y)
 
                 output = self.dcrnn_model(x, y, batches_seen)
-                loss = self._compute_loss(y, output, criterion)
+                loss = self._compute_loss(y, output)
 
                 self._logger.debug(loss.item())
 
@@ -158,17 +163,23 @@ class DCRNNSupervisor:
             self._logger.info("epoch complete")
             lr_scheduler.step()
             self._logger.info("evaluating now!")
-            val_loss = self.evaluate(dataset='val')
+
+            val_loss = self.evaluate(dataset='val', batches_seen=batches_seen)
             end_time = time.time()
-            if epoch_num % log_every == 0:
+
+            self._writer.add_scalar('training loss',
+                                    np.mean(losses),
+                                    batches_seen)
+
+            if epoch_num % log_every == log_every - 1:
                 message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, val_mae: {:.4f}, lr: {:.6f}, ' \
                           '{:.1f}s'.format(epoch_num, epochs, batches_seen,
                                            np.mean(losses), val_loss, lr_scheduler.get_lr()[0],
                                            (end_time - start_time))
                 self._logger.info(message)
 
-            if epoch_num % test_every_n_epochs == 0:
-                test_loss = self.evaluate(dataset='test')
+            if epoch_num % test_every_n_epochs == test_every_n_epochs - 1:
+                test_loss = self.evaluate(dataset='test', batches_seen=batches_seen)
                 message = 'Epoch [{}/{}] ({}) train_mae: {:.4f}, test_mae: {:.4f},  lr: {:.6f}, ' \
                           '{:.1f}s'.format(epoch_num, epochs, batches_seen,
                                            np.mean(losses), test_loss, lr_scheduler.get_lr()[0],
@@ -223,9 +234,7 @@ class DCRNNSupervisor:
                                           self.num_nodes * self.output_dim)
         return x, y
 
-    def _compute_loss(self, y_true, y_predicted, criterion):
-        loss = 0
-        for t in range(self.horizon):
-            loss += criterion(self.standard_scaler.inverse_transform(y_predicted[t]),
-                              self.standard_scaler.inverse_transform(y_true[t]))
-        return loss
+    def _compute_loss(self, y_true, y_predicted):
+        y_true = self.standard_scaler.inverse_transform(y_true)
+        y_predicted = self.standard_scaler.inverse_transform(y_predicted)
+        return masked_mae_loss(y_predicted, y_true)
