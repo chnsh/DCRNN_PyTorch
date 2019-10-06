@@ -155,9 +155,9 @@ class DCRNNSupervisor:
                 torch.nn.utils.clip_grad_norm_(self.dcrnn_model.parameters(), self.max_grad_norm)
 
                 optimizer.step()
-
+            self._logger.info("epoch complete")
             lr_scheduler.step()
-
+            self._logger.info("evaluating now!")
             val_loss = self.evaluate(dataset='val')
             end_time = time.time()
             if epoch_num % log_every == 0:
