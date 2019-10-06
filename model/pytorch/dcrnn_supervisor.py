@@ -129,6 +129,7 @@ class DCRNNSupervisor:
         self.dcrnn_model = self.dcrnn_model.train()
 
         self._logger.info('Start training ...')
+        self._logger.info("num_batches:".format(self._data['train_loader'].num_batch))
         for epoch_num in range(epochs):
             train_iterator = self._data['train_loader'].get_iterator()
             losses = []
@@ -154,7 +155,6 @@ class DCRNNSupervisor:
                 torch.nn.utils.clip_grad_norm_(self.dcrnn_model.parameters(), self.max_grad_norm)
 
                 optimizer.step()
-                self._logger.info("finished one batch in {:.1f}s".format(time.time() - start_time))
 
             lr_scheduler.step()
 
