@@ -147,6 +147,11 @@ class DCRNNSupervisor:
                 x, y = self._prepare_data(x, y)
 
                 output = self.dcrnn_model(x, y, batches_seen)
+
+                if batches_seen == 0:
+                    # this is a workaround to accommodate dynamically registered parameters in DCGRUCell
+                    optimizer = torch.optim.Adam(self.dcrnn_model.parameters(), lr=base_lr)
+
                 loss = self._compute_loss(y, output)
 
                 self._logger.debug(loss.item())
@@ -165,6 +170,9 @@ class DCRNNSupervisor:
             self._logger.info("evaluating now!")
 
             val_loss = self.evaluate(dataset='val', batches_seen=batches_seen)
+
+            self.dcrnn_model = self.dcrnn_model.train()
+
             end_time = time.time()
 
             self._writer.add_scalar('training loss',
