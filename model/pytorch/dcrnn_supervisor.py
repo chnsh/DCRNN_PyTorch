@@ -118,7 +118,7 @@ class DCRNNSupervisor:
                 output = self.dcrnn_model(x)
 
                 # (horizon, batch_size, num_sensor * output_dim)
-                for t in y.size(0):
+                for t in range(y.size(0)):
                     per_timestep_loss[t] += self._compute_loss(y[t], output[t])
 
                 num_batches += 1
