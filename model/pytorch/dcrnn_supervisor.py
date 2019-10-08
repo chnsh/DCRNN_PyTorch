@@ -133,7 +133,7 @@ class DCRNNSupervisor:
             per_timestep_loss /= num_batches
 
             for i, val in enumerate(per_timestep_loss):
-                self._logger.info("Dataset:{}, Timestep: {}, MAE:{}".format(dataset, i, val.item()))
+                self._logger.info("Dataset:{}, Timestep: {}, MAE:{:.4f}".format(dataset, i, val.item()))
 
             return mean_loss
 
