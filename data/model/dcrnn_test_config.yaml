@@ -25,7 +25,7 @@ model:
 train:
   base_lr: 0.01
   dropout: 0
-  epoch: 44
+  epoch: 51
   epochs: 100
   epsilon: 1.0e-3
   global_step: 0
