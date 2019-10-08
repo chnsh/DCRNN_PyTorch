@@ -131,8 +131,8 @@ class DCRNNSupervisor:
                 loss = self._compute_loss(y, output)
                 losses.append(loss.item())
 
-                y_truths.append(y)
-                y_preds.append(output)
+                y_truths.append(y.cpu())
+                y_preds.append(output.cpu())
 
             mean_loss = np.mean(losses)
 
