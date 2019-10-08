@@ -197,8 +197,6 @@ class DCRNNSupervisor:
 
             val_loss = self.evaluate(dataset='val', batches_seen=batches_seen)
 
-            self.dcrnn_model = self.dcrnn_model.train()
-
             end_time = time.time()
 
             self._writer.add_scalar('training loss',
