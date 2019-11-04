@@ -7,22 +7,32 @@ Yaguang Li, Rose Yu, Cyrus Shahabi, Yan Liu, [Diffusion Convolutional Recurrent 
 
 
 ## Requirements
-torch
-scipy>=0.19.0
-numpy>=1.12.1
-pandas>=0.19.2
-pyyaml
-statsmodels
-tensorflow>=1.3.0
-torch
-tables
-future
-
+* torch
+* scipy>=0.19.0
+* numpy>=1.12.1
+* pandas>=0.19.2
+* pyyaml
+* statsmodels
+* tensorflow>=1.3.0
+* torch
+* tables
+* future
 
 Dependency can be installed using the following command:
 ```bash
 pip install -r requirements.txt
 ```
+
+### Comparison with Tensorflow implementation
+
+In MAE (For LA dataset, PEMS-BAY coming in a while)
+
+| Horizon | Tensorflow | Pytorch |
+|:--------|:--------:|:--------:|
+| 1 Hour |   3.69   |   3.12   |    
+| 30 Min |   3.15   |   2.82   |    
+| 15 Min |   2.77   |   2.56   |    
+
 
 ## Data Preparation
 The traffic data files for Los Angeles (METR-LA) and the Bay Area (PEMS-BAY), i.e., `metr-la.h5` and `pems-bay.h5`, are available at [Google Drive](https://drive.google.com/open?id=10FOTa6HXPqX8Pf5WRoRwcFnW9BrNZEIX) or [Baidu Yun](https://pan.baidu.com/s/14Yy9isAIZYdU__OYEQGa_g), and should be
@@ -99,16 +109,6 @@ python -m scripts.eval_baseline_methods --traffic_reading_filename=data/metr-la.
 ![PyTorch Results](figures/result3.png "PyTorch Results")
 
 ![PyTorch Results](figures/result4.png "PyTorch Results")
-
-### Comparison with Tensorflow implementation
-
-In MAE
-
-| Horizon | Tensorflow | Pytorch |
-|:--------|:--------:|:--------:|
-| 1 Hour |   3.69   |   3.12   |    
-| 30 Min |   3.15   |   2.82   |    
-| 15 Min |   2.77   |   2.56   |    
 
 ## Citation
 
