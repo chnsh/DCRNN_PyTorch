@@ -100,6 +100,16 @@ python -m scripts.eval_baseline_methods --traffic_reading_filename=data/metr-la.
 
 ![PyTorch Results](figures/result4.png "PyTorch Results")
 
+### Comparison with Tensorflow implementation
+
+In MAE
+
+| Horizon | Tensorflow | Pytorch |
+|:--------|:--------:|:--------:|
+| 1 Hour |   3.69   |   3.12   |    
+| 30 Min |   3.15   |   2.82   |    
+| 15 Min |   2.77   |   2.56   |    
+
 ## Citation
 
 If you find this repository, e.g., the code and the datasets, useful in your research, please cite the following paper:
